@@ -41,8 +41,10 @@ gmIssueChangesConstructor = ->
         for fieldName in validFields
             field = scope.h[fieldName]
 
+            console.log field
             if field is undefined
                 continue
+
 
             elements.push(handleField(fieldName, field))
 

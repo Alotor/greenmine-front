@@ -73,6 +73,7 @@ modules = [
     "greenmine.services.common",
     "greenmine.services.resource",
     "greenmine.services.storage",
+    "greenmine.services.model",
     "greenmine.directives.generic",
     "greenmine.directives.common",
     "greenmine.directives.dashboard",

@@ -1,7 +1,7 @@
-commonModule = angular.module('greenmine.directives.common', [])
+module = angular.module('greenmine.directives.common', [])
 
 
-headerMenuConstructor = ($rootScope) ->
+headerMenuDirective = ($rootScope) ->
     return (scope, elm, attrs) ->
         element = angular.element(elm)
         menuSection = $rootScope.pageSection
@@ -22,10 +22,10 @@ headerMenuConstructor = ($rootScope) ->
         else
             element.hide()
 
-commonModule.directive('gmHeaderMenu', ["$rootScope", headerMenuConstructor])
+module.directive('gmHeaderMenu', ["$rootScope", headerMenuDirective])
 
 
-breadcrumbsConstructor = ($rootScope) ->
+breadcrumbsDirective = ($rootScope) ->
     return (scope, elm, attrs) ->
         breadcrumb = $rootScope.pageBreadcrumb
 
@@ -41,153 +41,166 @@ breadcrumbsConstructor = ($rootScope) ->
             if index != total
                 element.append(angular.element('<span class="separator"> &rsaquo; </span>'))
 
-commonModule.directive('gmBreadcrumb', ["$rootScope", breadcrumbsConstructor])
+module.directive('gmBreadcrumb', ["$rootScope", breadcrumbsDirective])
 
-commonModule.
-    directive('gmColorizeTag', ->
-        return (scope, elm, attrs) ->
+
+GmColorizeTagDirective = -> (scope, elm, attrs) ->
+    element = angular.element(elm)
+
+    if _.isObject(scope.tag)
+        hash = hex_sha1(scope.tag.name.toLowerCase())
+    else
+        hash = hex_sha1(scope.tag.toLowerCase())
+
+    color = hash
+        .substring(0,6)
+        .replace('8','0')
+        .replace('9','1')
+        .replace('a','2')
+        .replace('b','3')
+        .replace('c','4')
+        .replace('d','5')
+        .replace('e','6')
+        .replace('f','7')
+
+    element.css('background-color', '#' + color)
+
+module.directive('gmColorizeTag', GmColorizeTagDirective)
+
+GmKalendae = ->
+    directive =
+        require: "?ngModel"
+        link: (scope, elm, attrs, ngModel) ->
             element = angular.element(elm)
-            if _.isObject(scope.tag)
-                hash = hex_sha1(scope.tag.name.toLowerCase())
-            else
-                hash = hex_sha1(scope.tag.toLowerCase())
+            options =
+                format: "YYYY-MM-DD"
 
-            color = hash
-                .substring(0,6)
-                .replace('8','0')
-                .replace('9','1')
-                .replace('a','2')
-                .replace('b','3')
-                .replace('c','4')
-                .replace('d','5')
-                .replace('e','6')
-                .replace('f','7')
+            kalendae = new Kalendae.Input(element.get(0), options)
+            element.data('kalendae', kalendae)
 
-            element.css('background-color', '#' + color)
-    ).
-    directive("gmKalendae", ->
-        return {
-            require: "?ngModel"
-            link: (scope, elm, attrs, ngModel) ->
-                element = angular.element(elm)
-                options =
-                    format: "YYYY-MM-DD"
+            kalendae.subscribe 'change', (date, action) ->
+                self = this
+                scope.$apply ->
+                    ngModel.$setViewValue(self.getSelected())
 
-                kalendae = new Kalendae.Input(element.get(0), options)
-                element.data('kalendae', kalendae)
+    return directive
 
-                kalendae.subscribe 'change', (date, action) ->
-                    self = this
+
+module.directive('gmKalendae', GmKalendae)
+
+UiSortableDirective = ->
+    uiConfig = {}
+
+    linkCallback = (scope, element, attrs, ngModel) ->
+        opts = angular.extend({}, uiConfig.sortable)
+        opts.connectWith = attrs.uiSortable
+
+        if ngModel
+            ngModel.$render = ->
+                element.sortable( "refresh" )
+
+            onStart = (e, ui) ->
+                # Save position of dragged item
+                ui.item.sortable = { index: ui.item.index() }
+                # console.log("onStart", ui.item.index())
+
+            onUpdate = (e, ui) ->
+                # For some reason the reference to ngModel in stop() is wrong
+                # console.log("onUpdate", ngModel.$modelValue)
+                ui.item.sortable.model = ngModel
+                ui.item.sortable.scope = scope
+
+            onReceive = (e, ui) ->
+                # console.log("onReceive", ui.item.sortable.moved)
+
+                ui.item.sortable.relocate = true
+                # ngModel.$modelValue.splice(ui.item.index(), 0, ui.item.sortable.moved)
+                # ngModel.$viewValue.splice(ui.item.index(), 0, ui.item.sortable.moved)
+
+                # scope.$digest()
+                # scope.$broadcast("backlog-resort")
+
+            onRemove = (e, ui) ->
+                if ngModel.$modelValue.length == 1
+                    ui.item.sortable.moved = ngModel.$modelValue.splice(0, 1)[0]
+                else
+                    ui.item.sortable.moved =  ngModel.$modelValue.splice(ui.item.sortable.index, 1)[0]
+
+            onStop = (e, ui) ->
+                if ui.item.sortable.model and not ui.item.sortable.relocate
+                    # Fetch saved and current position of dropped element
+                    start = ui.item.sortable.index
+                    end = ui.item.index()
+
+                    # Reorder array and apply change to scope
+                    ui.item.sortable.model.$modelValue.splice(end, 0, ui.item.sortable.model.$modelValue.splice(start, 1)[0])
+                    # scope.$broadcast("sortable:changed")
+                    scope.$emit("sortable:changed")
+                else
                     scope.$apply ->
-                        ngModel.$setViewValue(self.getSelected())
-        }
-    ).
-    directive("uiSortable", ->
-        uiConfig = {}
+                        ui.item.sortable.moved.order = ui.item.index()
+                        ui.item.sortable.model.$modelValue.splice(ui.item.index(), 0, ui.item.sortable.moved)
 
-        return {
-            require: '?ngModel',
-            link: (scope, element, attrs, ngModel) ->
-                opts = angular.extend({}, uiConfig.sortable)
-                opts.connectWith = attrs.uiSortable
+                    scope.$apply ->
+                        # ui.item.sortable.scope.$broadcast("sortable:changed")
+                        ui.item.sortable.scope.$emit("sortable:changed")
+                        scope.$emit("sortable:changed")
 
-                if ngModel
-                    ngModel.$render = ->
-                        element.sortable( "refresh" )
+                scope.$apply()
 
-                    onStart = (e, ui) ->
-                        # Save position of dragged item
-                        ui.item.sortable = { index: ui.item.index() }
-                        # console.log("onStart", ui.item.index())
+            # If user provided 'start' callback compose it with onStart
+            opts.start = ((_start) ->
+                return (e, ui) ->
+                    onStart(e, ui)
+                    if typeof _start == ""
+                        _start(e, ui)
+            )(opts.start)
 
-                    onUpdate = (e, ui) ->
-                        # For some reason the reference to ngModel in stop() is wrong
-                        # console.log("onUpdate", ngModel.$modelValue)
-                        ui.item.sortable.model = ngModel
-                        ui.item.sortable.scope = scope
+            # If user provided 'start' callback compose it with onStart
+            opts.stop = ((_stop) ->
+                return (e, ui) ->
+                    onStop(e, ui)
+                    if typeof _stop == ""
+                        _stop(e, ui)
+            )(opts.stop)
 
-                    onReceive = (e, ui) ->
-                        # console.log("onReceive", ui.item.sortable.moved)
+            # If user provided 'update' callback compose it with onUpdate
+            opts.update = ((_update) ->
+                return (e, ui) ->
+                    onUpdate(e, ui)
+                    if typeof _update == ""
+                        _update(e, ui)
+            )(opts.update)
 
-                        ui.item.sortable.relocate = true
-                        # ngModel.$modelValue.splice(ui.item.index(), 0, ui.item.sortable.moved)
-                        # ngModel.$viewValue.splice(ui.item.index(), 0, ui.item.sortable.moved)
+            # If user provided 'receive' callback compose it with onReceive
+            opts.receive = ((_receive) ->
+                return (e, ui) ->
+                    onReceive(e, ui)
+                    if typeof _receive == ""
+                        _receive(e, ui)
+            )(opts.receive)
 
-                        # scope.$digest()
-                        # scope.$broadcast("backlog-resort")
+            # If user provided 'remove' callback compose it with onRemove
+            opts.remove = ((_remove) ->
+                return (e, ui) ->
+                    onRemove(e, ui)
+                    if typeof _remove == ""
+                        _remove(e, ui)
+            )(opts.remove)
 
-                    onRemove = (e, ui) ->
-                        if ngModel.$modelValue.length == 1
-                            ui.item.sortable.moved = ngModel.$modelValue.splice(0, 1)[0]
-                        else
-                            ui.item.sortable.moved =  ngModel.$modelValue.splice(ui.item.sortable.index, 1)[0]
+        # Create sortable
+        element.sortable(opts)
 
-                    onStop = (e, ui) ->
-                        if ui.item.sortable.model and not ui.item.sortable.relocate
-                            # Fetch saved and current position of dropped element
-                            start = ui.item.sortable.index
-                            end = ui.item.index()
+    directive =
+        require: '?ngModel'
+        link: linkCallback
 
-                            # Reorder array and apply change to scope
-                            ui.item.sortable.model.$modelValue.splice(end, 0, ui.item.sortable.model.$modelValue.splice(start, 1)[0])
-                            # scope.$broadcast("sortable:changed")
-                            scope.$emit("sortable:changed")
-                        else
-                            scope.$apply ->
-                                ui.item.sortable.moved.order = ui.item.index()
-                                ui.item.sortable.model.$modelValue.splice(ui.item.index(), 0, ui.item.sortable.moved)
+    return directive
 
-                            scope.$apply ->
-                                # ui.item.sortable.scope.$broadcast("sortable:changed")
-                                ui.item.sortable.scope.$emit("sortable:changed")
-                                scope.$emit("sortable:changed")
 
-                        scope.$apply()
+module.directive('uiSortable', UiSortableDirective)
 
-                    # If user provided 'start' callback compose it with onStart
-                    opts.start = ((_start) ->
-                        return (e, ui) ->
-                            onStart(e, ui)
-                            if typeof _start == ""
-                                _start(e, ui)
-                    )(opts.start)
-
-                    # If user provided 'start' callback compose it with onStart
-                    opts.stop = ((_stop) ->
-                        return (e, ui) ->
-                            onStop(e, ui)
-                            if typeof _stop == ""
-                                _stop(e, ui)
-                    )(opts.stop)
-
-                    # If user provided 'update' callback compose it with onUpdate
-                    opts.update = ((_update) ->
-                        return (e, ui) ->
-                            onUpdate(e, ui)
-                            if typeof _update == ""
-                                _update(e, ui)
-                    )(opts.update)
-
-                    # If user provided 'receive' callback compose it with onReceive
-                    opts.receive = ((_receive) ->
-                        return (e, ui) ->
-                            onReceive(e, ui)
-                            if typeof _receive == ""
-                                _receive(e, ui)
-                    )(opts.receive)
-
-                    # If user provided 'remove' callback compose it with onRemove
-                    opts.remove = ((_remove) ->
-                        return (e, ui) ->
-                            onRemove(e, ui)
-                            if typeof _remove == ""
-                                _remove(e, ui)
-                    )(opts.remove)
-
-                # Create sortable
-                element.sortable(opts)
-        }
-    ).
+module.
     directive('gmPopover', ['$parse', '$compile', ($parse, $compile) ->
         createContext = (scope, element) ->
             context = (element.data('ctx') or "").split(",")

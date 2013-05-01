@@ -1,5 +1,4 @@
 @BacklogController = ($scope, $rootScope, $routeParams, rs) ->
-    # Global Scope Variables
     $rootScope.pageSection = 'backlog'
     $rootScope.pageBreadcrumb = ["Project", "Backlog"]
     $rootScope.projectId = parseInt($routeParams.pid, 10)
@@ -8,6 +7,7 @@
     $scope.$broadcast("flash:new", true, "KK")
 
     $scope.$on "stats:update", (ctx, data) ->
+        console.log "stats:update", data
         if data.notAssignedPoints
             $scope.stats.notAssignedPoints = data.notAssignedPoints
 
@@ -33,7 +33,8 @@
 
 
 @BacklogUserStoriesCtrl = ($scope, $rootScope, $q, rs) ->
-    # Local scope variables
+    projectId = parseInt($rootScope.projectId, 10)
+
     $scope.filtersOpened = false
     $scope.form = {}
 
@@ -42,7 +43,10 @@
         total = 0
 
         _.each $scope.unassingedUs, (us) ->
-            total += pointIdToOrder(us.points)
+            us.get('points')
+            total += pointIdToOrder(us.get('points'))
+
+        console.log total
 
         $scope.$emit("stats:update", {
             "notAssignedPoints": total
@@ -53,7 +57,7 @@
         tags = []
 
         _.each $scope.unassingedUs, (us) ->
-            _.each us.tags, (tag) ->
+            _.each us.get('tags'), (tag) ->
                 if tagsDict[tag] is undefined
                     tagsDict[tag] = 1
                 else
@@ -65,14 +69,16 @@
         $scope.tags = tags
 
     filterUsBySelectedTags = ->
-        selectedTags = _.filter($scope.tags, "selected")
-        selectedTagsIds = _.map(selectedTags, "name")
+        selectedTags = _($scope.tags)
+                            .filter("selected")
+                            .map("name")
+                            .value()
 
-        if selectedTagsIds.length > 0
+        if selectedTags.length > 0
             _.each $scope.unassingedUs, (item) ->
-                itemTagIds = _.map(item.tags, (tag) -> tag)
-                interSection = _.intersection(selectedTagsIds, itemTagIds)
+                itemTags = item.get('tags')
 
+                interSection = _.intersection(selectedTags, itemTags)
                 if interSection.length == 0
                     item.__hidden = true
                 else
@@ -84,11 +90,11 @@
     resortUserStories = ->
         # Normalize user stories array
         _.each $scope.unassingedUs, (item, index) ->
-            item.order = index
-            item.milestone = null
+            item.set('milestone', null)
+            item.set('order', index)
 
         # Sort again
-        $scope.unassingedUs = _.sortBy($scope.unassingedUs, "order")
+        $scope.unassingedUs = _.sortBy($scope.unassingedUs, (item) -> item.get('order'))
 
         # Calculte new stats
         calculateStats()
@@ -111,18 +117,18 @@
     ]).then((results) ->
         unassingedUs = results[0]
         usPoints = results[1]
-        projectId = parseInt($rootScope.projectId, 10)
 
-        $scope.unassingedUs = _.filter(unassingedUs,
-                {"project": projectId, milestone: null})
+        $scope.unassingedUs = _.filter unassingedUs, (item) ->
+            return (item.get('project') == projectId and
+                     item.get('milestone') == null)
 
-        $scope.unassingedUs = _.sortBy($scope.unassingedUs, "order")
+        $scope.unassingedUs = _.sortBy($scope.unassingedUs, (item) -> item.get('order'))
 
         $rootScope.constants.points = {}
-        $rootScope.constants.pointsList = _.sortBy(usPoints, "order")
+        $rootScope.constants.pointsList = _.sortBy(usPoints, (item) -> item.get('order'))
 
         _.each usPoints, (item) ->
-            $rootScope.constants.points[item.id] = item
+            $rootScope.constants.points[item.get('id')] = item
 
         generateTagList()
         filterUsBySelectedTags()
@@ -155,19 +161,17 @@
     # Pre edit user story hook.
     $scope.initEditUs = (us) ->
         if us?
-            $scope.form = us
+            $scope.form = _.extend({}, us.attrs())
         else
             $scope.form = {tags: []}
 
     # Cancel edit user story hook.
     $scope.cancelEditUs = ->
-        if $scope.form?
-            if $scope.form.revert?
-                $scope.form.revert()
-            $scope.form = {}
+        $scope.form = {}
 
     $scope.removeUs = (us) ->
-        us.remove().then ->
+        promise = us.remove()
+        primuse.then ->
             index = $scope.unassingedUs.indexOf(us)
             $scope.unassingedUs.splice(index, 1)
 
@@ -176,9 +180,10 @@
             filterUsBySelectedTags()
 
     $scope.saveUsPoints = (us, id) ->
-        us.points = id
-        us.save().then calculateStats, (data, status) ->
-            us.revert()
+        us.set('points', id)
+
+        promise = us.save()
+        promuse.then(calculateStats, -> us.revert())
 
     # User Story Filters
     $scope.selectTag = (tag) ->
@@ -186,6 +191,7 @@
             tag.selected = false
         else
             tag.selected = true
+
         filterUsBySelectedTags()
 
     # Signal Handlign
@@ -197,18 +203,20 @@
 @BacklogMilestonesController = ($scope, $rootScope, rs) ->
     # Local scope variables
     $scope.sprintFormOpened = false
+    projectId = parseInt($rootScope.projectId, 10)
 
     calculateStats = ->
         pointIdToOrder = greenmine.utils.pointIdToOrder($scope.constants.points)
+
         assigned = 0
         completed = 0
 
         _.each $scope.milestones, (ml) ->
-            _.each ml.user_stories, (us) ->
-                assigned += pointIdToOrder(us.points)
+            _.each ml.get('user_stories'), (us) ->
+                assigned += pointIdToOrder(us.get('points'))
 
                 if us.is_closed
-                    completed += pointIdToOrder(us.points)
+                    completed += pointIdToOrder(us.get('points'))
 
         $scope.$emit("stats:update", {
             "assignedPoints": assigned,
@@ -216,19 +224,22 @@
         })
 
     $scope.$on "points:loaded", ->
-        rs.getMilestones($rootScope.projectId).then (data) ->
+        promise = rs.getMilestones($rootScope.projectId)
+
+        promise.then (data) ->
             # HACK: because django-filter does not works properly
             # $scope.milestones = data
             $scope.milestones = _.filter data, (item) ->
-                item.project == $rootScope.projectId
+                item.get('project') == projectId
 
             calculateStats()
             $scope.$emit("milestones:loaded", $scope.milestones)
 
-
     $scope.sprintSubmit = ->
-        if $scope.form.save is undefined
-            rs.createMilestone($scope.projectId, $scope.form).then (milestone) ->
+        if $scope.form.id is undefined
+            promise = rs.createMilestone($scope.projectId, $scope.form)
+            promise.then (milestone) ->
+                console.log $scope.milestones milestone
                 $scope.milestones.unshift(milestone)
 
                 # Clear the current form after creating
@@ -241,10 +252,14 @@
                 # last created milestone
                 $rootScope.sprintId = milestone.id
 
-        else
-            $scope.form.save().then ->
-                $scope.form = {}
-                $scope.sprintFormOpened = false
+        # At the moment not implemented sprint modification
+        #    attrs = ['name', 'estimated_start', 'estimated_finish']
+        #    for attr in attrs
+        #        value = $scope.form[attr]
+
+        #    $scope.form.save().then ->
+        #        $scope.form = {}
+        #        $scope.sprintFormOpened = false
 
 
 @BacklogMilestonesController.$inject = ['$scope', '$rootScope', 'resource']
@@ -256,25 +271,30 @@
         total = 0
         completed = 0
 
-        _.each $scope.ml.user_stories, (us) ->
-            total += pointIdToOrder(us.points)
+        userStories = $scope.ml.get('user_stories')
 
-            if us.is_closed
-                completed += pointIdToOrder(us.points)
+        _.each userStories, (us) ->
+            total += pointIdToOrder(us.get('points'))
+
+            if us.get('is_closed')
+                completed += pointIdToOrder(us.get('points'))
 
         $scope.stats =
             total: total
             completed: completed
             percentage: ((completed * 100) / total).toFixed(1)
 
+
     normalizeMilestones = ->
-        _.each $scope.ml.user_stories, (item, index) ->
-            item.milestone = $scope.ml.id
+        userStories = $scope.ml.get('user_stories')
+
+        _.each userStories, (item, index) ->
+            item.set('milestone', $scope.ml.get('id'))
 
         # Calculte new stats
         calculateStats()
 
-        _.each $scope.ml.user_stories, (item) ->
+        _.each userStories, (item) ->
             if item.isModified()
                 item.save()
 

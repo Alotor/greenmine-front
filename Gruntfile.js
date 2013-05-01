@@ -63,7 +63,7 @@ module.exports = function(grunt) {
 
         coffee: {
             mainDevelopment: {
-                options: {join: false},
+                options: {join: false, sourceMap: false},
                 files: {"app/dist/app.js": ["app/coffee/**/*.coffee"]}
             },
 

@@ -75,13 +75,13 @@
                             ui-sortable-index="{{$index}}">
                         <div class="us-title">
                             <span class="tags">
-                                <span ng-repeat="tag in us.tags" class="label" gm-colorize-tag>{{ tag }}</span>
+                                <span ng-repeat="tag in us.get('tags')" class="label" gm-colorize-tag>{{ tag }}</span>
                             </span>
-                            <span class="title">{{ us.subject|truncate:80 }}</span>
+                            <span class="title">{{ us.get('subject')|truncate:80 }}</span>
                         </div>
                         <div class="us-points">
                             <a href="" gm-popover="saveUsPoints(us, selectedId)"
-                                data-tmpl="#points-popover" data-auto-hide="true">{{ resolvePoints(us.points) }}</a>
+                                data-tmpl="#points-popover" data-auto-hide="true">{{ resolvePoints(us.get('points')) }}</a>
                         </div>
                         <div class="us-options">
                             <a class="btn-small-preview" gm-popover data-tmpl="#us-preview-popover" data-auto-hide="true">
@@ -137,7 +137,7 @@
                         ng-class="{first: $first}">
                 <div class="header">
                     <div class="title">
-                        <a href="{{ urls.dashboardUrl(projectId, ml.id) }}">{{ ml.name }}</a>
+                        <a href="{{ urls.dashboardUrl(projectId, ml.get('id')) }}">{{ ml.get('name') }}</a>
                         <span ng-show="$first">current sprint</span>
                     </div>
                     <div class="stats">
@@ -164,9 +164,9 @@
                         <div class="us-table-list">
                             <div class="flex-body" ui-sortable=".us-container .flex-body"
                                     ng-model="milestones[$index].user_stories">
-                                <div class="us-item" ng-repeat="us in ml.user_stories">
-                                    <div class="us-title">{{ us.subject|truncate:50 }}</div>
-                                    <div class="us-points">{{ resolvePoints(us.points) }}</div>
+                                <div class="us-item" ng-repeat="us in ml.get('user_stories')">
+                                    <div class="us-title">{{ us.get('subject')|truncate:50 }}</div>
+                                    <div class="us-points">{{ resolvePoints(us.get('points')) }}</div>
                                 </div>
                             </div>
                         </div>
@@ -179,8 +179,8 @@
 <script type="text/template" id="points-popover">
     <div class="us-points-popover">
         <ul>
-            <li class="item btn-accept" ng-repeat="obj in constants.pointsList" data-id="{{ obj.id }}">
-                <a href="">{{ obj.name }}</a>
+            <li class="item btn-accept" ng-repeat="obj in constants.pointsList" data-id="{{ obj.get('id') }}">
+                <a href="">{{ obj.get('name') }}</a>
             </li>
         </ul>
     </div>
@@ -189,11 +189,11 @@
 <script type="text/template" id="us-preview-popover">
     <div class="us-preview-popover">
         <section>
-            <strong>Subject:</strong><br />{{ us.subject }}
+            <strong>Subject:</strong><br />{{ us.get('subject') }}
         </section>
         <section>
             <strong>Description:</strong>
-            <p>{{ us.description }}</p>
+            <p>{{ us.get('description') }}</p>
         </section>
     </div>
 </script>
@@ -202,7 +202,7 @@
     <div class="us-remove-popover">
         <section>
             <p>Are you sure you want to delete this user story:
-                <strong>{{ us.subject }}</strong></p>
+                <strong>{{ us.get('subject') }}</strong></p>
         </section>
         <section>
             <input type="button" class="button button-success" value="Delete" />
@@ -215,7 +215,7 @@
     <div class="new-us-modal modal hide">
         <form class="inline-form us-form" ui-parsley="submitUs()">
             <div class="modal-header">
-                <h3>Modal title</h3>
+                <h3>Create/Modify User story</h3>
             </div>
             <div class="modal-body">
                 <div class="fieldset-row">
@@ -229,7 +229,7 @@
                         <label>Points</label>
                         <select class="points" name="points" ng-model="form.points" data-required="true"
                             data-type="number" data-error-message="Required"
-                            ng-options="c.id as c.name for c in constants.pointsList|orderBy:'order'"></select>
+                            ng-options="c.get('id') as c.get('name') for c in constants.pointsList|orderBy:'order'"></select>
                     </fieldset>
                 </div>
                 <div class="fieldset-row">
@@ -237,7 +237,7 @@
                         <label>Status</label>
                         <select class="status" name="status" ng-model="form.status" data-required="true"
                             data-type="number" data-error-message="Required"
-                            ng-options="c.id as c.name for c in usstatuses|orderBy:'order'"></select>
+                            ng-options="c.get('id') as c.get('name') for c in usstatuses|orderBy:'order'"></select>
                         </select>
                     </fieldset>
                     <fieldset>

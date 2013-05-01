@@ -244,47 +244,45 @@
         attachments = results[5]
         issue = results[6]
 
-        _.each(users, (item) -> $rootScope.constants.users[item.id] = item)
-        _.each(issueTypes, (item) -> $rootScope.constants.type[item.id] = item)
-        _.each(issueStatuses, (item) -> $rootScope.constants.status[item.id] = item)
-        _.each(severities, (item) -> $rootScope.constants.severity[item.id] = item)
-        _.each(priorities, (item) -> $rootScope.constants.priority[item.id] = item)
+        _.each(users, (item) -> $rootScope.constants.users[item.get('id')] = item)
+        _.each(issueTypes, (item) -> $rootScope.constants.type[item.get('id')] = item)
+        _.each(issueStatuses, (item) -> $rootScope.constants.status[item.get('id')] = item)
+        _.each(severities, (item) -> $rootScope.constants.severity[item.get('id')] = item)
+        _.each(priorities, (item) -> $rootScope.constants.priority[item.get('id')] = item)
 
-        $rootScope.constants.typeList = _.sortBy(issueTypes, "order")
-        $rootScope.constants.statusList = _.sortBy(issueStatuses, "order")
-        $rootScope.constants.severityList = _.sortBy(severities, "order")
-        $rootScope.constants.priorityList = _.sortBy(priorities, "order")
-        $rootScope.constants.usersList = _.sortBy(users, "id")
+        orderClosure = (item) -> item.get('order')
+        $rootScope.constants.typeList = _.sortBy(issueTypes, orderClosure)
+        $rootScope.constants.statusList = _.sortBy(issueStatuses, orderClosure)
+        $rootScope.constants.severityList = _.sortBy(severities, orderClosure)
+        $rootScope.constants.priorityList = _.sortBy(priorities, orderClosure)
+        $rootScope.constants.usersList = _.sortBy(users, (item) -> item.get('id'))
 
         $scope.attachments = attachments
         $scope.issue = issue
-        $scope.form = _.extend({}, $scope.issue)
+        $scope.form = _.extend({}, $scope.issue.attrs())
     )
 
-    $scope.issue = {}
-    $scope.form = {}
     $scope.updateFormOpened = false
 
-    $scope.isSameAs = (property, id) ->
-        return ($scope.issue[property] == parseInt(id, 10))
-
     $scope.save = ->
-        defered = $q.defer()
-        promise = defered.promise
+        #defered = $q.defer()
+        #promise = defered.promise
 
-        if $scope.attachment
-            rs.uploadIssueAttachment(projectId, issueId, $scope.attachment).then (data)->
-                defered.resolve(data)
-        else
-            defered.resolve(null)
+        #if $scope.attachment
+        #    rs.uploadIssueAttachment(projectId, issueId, $scope.attachment).then (data)->
+        #        defered.resolve(data)
+        #else
+        #    defered.resolve(null)
 
-        promise = promise.then (data) ->
-            _.each $scope.form, (value, key) ->
-                $scope.issue[key] = value
-            return $scope.issue.save()
+        attrs = ["assigned_to", "status", "priority", "severity",
+                 "subject", "description", "comment", "tags",]
 
-        promise = promise.then (issue)->
+        _.each attrs, (attrName) ->
+            value = $scope.form[attrName]
+            $scope.issue.set(attrName, value)
+
+        return $scope.issue.save().then (issue) ->
             $scope.updateFormOpened = false
-            return issue.refresh()
+            $scope.issue.refresh()
 
 @IssuesViewController.$inject = ['$scope', '$rootScope', '$routeParams', '$q', 'resource']
